@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CODE CRAWLER - THE ESCAPE</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --wall-color: #1a1a2e;
+            --player-color: #00ffcc;
+            --enemy-color: #ff0055;
+            --key-color: #ffcc00;
+            --exit-color: #00ff00;
+            --bullet-color: #fff700;
+            --bg-black: #050505;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; touch-action: none; }
+        body { background-color: var(--bg-black); color: #fff; font-family: 'Rajdhani', sans-serif; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
+
+        .screen { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; background: var(--bg-black); }
+        .hidden { display: none !important; }
+
+        .title { font-family: 'Orbitron', sans-serif; font-size: 3.5rem; color: var(--player-color); text-shadow: 0 0 20px var(--player-color); margin-bottom: 20px; text-align: center; }
+        .btn { padding: 12px 30px; background: transparent; border: 2px solid var(--player-color); color: #fff; font-family: 'Orbitron', sans-serif; font-weight: bold; cursor: pointer; border-radius: 5px; margin: 8px; min-width: 220px; transition: 0.3s; text-align: center; z-index: 20; font-size: 0.9rem; }
+        .btn:hover { background: var(--player-color); color: #000; box-shadow: 0 0 20px var(--player-color); }
+        
+        .menu-footer { position: absolute; bottom: 30px; width: 100%; text-align: center; font-family: 'Orbitron', sans-serif; font-size: 0.75rem; color: rgba(0, 255, 204, 0.6); letter-spacing: 2px; text-transform: uppercase; }
+
+        #how-to-modal { background: rgba(0, 0, 0, 0.95); border: 2px solid var(--player-color); padding: 30px; max-width: 400px; border-radius: 10px; box-shadow: 0 0 30px rgba(0, 255, 204, 0.2); }
+        .instruction-item { margin-bottom: 15px; display: flex; align-items: center; gap: 15px; font-size: 1.1rem; }
+        .icon-box { width: 30px; height: 30px; border: 1px solid #fff; display: flex; justify-content: center; align-items: center; font-weight: bold; font-family: 'Orbitron'; color: var(--player-color); }
+
+        #game-container { position: relative; display: grid; grid-template-columns: repeat(19, 20px); grid-template-rows: repeat(21, 20px); background: #000; border: 4px solid var(--wall-color); margin-top: -80px; }
+        .cell { width: 20px; height: 20px; position: relative; }
+        .wall { background: var(--wall-color); border: 1px solid #2a2a4e; }
+
+        .player { background: radial-gradient(circle, #fff 10%, var(--player-color) 60%); border-radius: 50%; box-shadow: 0 0 15px var(--player-color); z-index: 5; transform: scale(0.85); }
+        .player::after { content: ''; position: absolute; inset: -2px; border: 2px solid var(--player-color); border-radius: 50%; animation: rotate 2s linear infinite; }
+
+        .enemy { background: radial-gradient(circle, #000 30%, var(--enemy-color) 80%); border-radius: 2px; box-shadow: 0 0 12px var(--enemy-color); z-index: 4; transform: rotate(45deg) scale(0.7); animation: pulse 1s ease-in-out infinite; }
+        .key { background: var(--key-color); clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%); box-shadow: 0 0 15px var(--key-color); transform: scale(0.6); animation: float 1.5s ease-in-out infinite; }
+        .exit { background: repeating-conic-gradient(from 0deg, #111 0deg 30deg, var(--exit-color) 31deg 60deg); border-radius: 50%; opacity: 0.1; transition: 0.5s; }
+        .exit.unlocked { opacity: 1; box-shadow: 0 0 25px var(--exit-color); animation: rotate 4s linear infinite; }
+
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { transform: rotate(45deg) scale(0.7); opacity: 1; } 50% { transform: rotate(45deg) scale(0.9); opacity: 0.7; } }
+        @keyframes float { 0%, 100% { transform: scale(0.6) translateY(0px); } 50% { transform: scale(0.6) translateY(-5px); } }
+
+        .bullet { position: fixed; width: 6px; height: 6px; background: var(--bullet-color); border-radius: 50%; box-shadow: 0 0 8px var(--bullet-color); pointer-events: none; z-index: 100; }
+
+        .respawn-msg { position: absolute; width: 80px; text-align: center; font-size: 0.55rem; color: var(--enemy-color); font-weight: bold; top: -18px; left: -30px; pointer-events: none; text-transform: uppercase; }
+
+        .hud { position: absolute; top: -50px; width: 100%; display: flex; justify-content: space-between; color: var(--player-color); font-size: 1.2rem; }
+        
+        .controls { 
+            position: fixed; 
+            bottom: 30px; 
+            display: grid; 
+            grid-template-columns: repeat(3, 65px); 
+            gap: 10px; 
+            background: rgba(0,0,0,0.5);
+            padding: 15px;
+            border-radius: 20px;
+            border: 1px solid rgba(0, 255, 204, 0.2);
+            z-index: 50;
+        }
+        .ctrl-btn { 
+            width: 65px; 
+            height: 65px; 
+            background: rgba(26, 26, 46, 0.8); 
+            border: 2px solid var(--player-color); 
+            color: var(--player-color); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            border-radius: 12px; 
+            font-size: 1.8rem; 
+            cursor: pointer; 
+            transition: 0.1s; 
+            box-shadow: 0 0 10px rgba(0, 255, 204, 0.1); 
+            touch-action: none;
+        }
+        .ctrl-btn:active { background: var(--player-color); color: #000; transform: scale(0.9); }
+
+        #splash-screen { z-index: 1000; background: var(--bg-black); transition: opacity 1s ease-in-out; }
+        .studio-logo { font-family: 'Orbitron', sans-serif; font-size: 2.5rem; color: #fff; letter-spacing: 10px; text-shadow: 0 0 20px var(--player-color); animation: flicker 2s infinite alternate; }
+        @keyframes flicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+        @media (max-width: 600px) {
+            .title { font-size: 2rem; }
+            #game-container { grid-template-columns: repeat(19, 4.8vw); grid-template-rows: repeat(21, 4.8vw); margin-top: -120px; }
+            .cell { width: 4.8vw; height: 4.8vw; }
+            .controls { bottom: 20px; transform: scale(0.9); }
+            .hud { font-size: 0.9rem; top: -40px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="splash-screen" class="screen">
+        <h2 class="studio-logo">AXUMIT STUDIOS</h2>
+    </div>
+
+    <div id="menu" class="screen">
+        <h1 class="title">CODE CRAWLER</h1>
+        <button id="start-btn" class="btn">START ESCAPE</button>
+        <button id="how-to-btn" class="btn">HOW TO PLAY</button>
+        <button id="sound-toggle" class="btn on">SOUND: ON</button>
+        <div class="menu-footer">Created by Kidus Yared and Tamerat Aklilu</div>
+    </div>
+
+    <div id="how-to-screen" class="screen hidden">
+        <div id="how-to-modal">
+            <h2 class="title" style="font-size: 1.5rem; margin-bottom: 30px;">PROTOCOL</h2>
+            <div class="instruction-item"><div class="icon-box">↑</div><p>Use <b>ARROWS</b> to MOVE character.</p></div>
+            <div class="instruction-item"><div class="icon-box">TAP</div><p><b>TAP SCREEN</b> to fire at hostiles.</p></div>
+            <div class="instruction-item"><div class="icon-box">★</div><p>Collect <b>KEY</b> to unlock exit portal.</p></div>
+            <button id="back-btn" class="btn" style="width: 100%; margin-top: 20px;">ACKNOWLEDGED</button>
+        </div>
+    </div>
+
+    <div id="game-screen" class="screen hidden">
+        <div id="game-container">
+            <div class="hud">
+                <div id="lvl-display">LEVEL: 1</div>
+                <div id="status-display">FIND THE KEY</div>
+            </div>
+        </div>
+        <div class="controls">
+            <div></div><div class="ctrl-btn" id="up">↑</div><div></div>
+            <div class="ctrl-btn" id="left">←</div><div class="ctrl-btn" id="down">↓</div><div class="ctrl-btn" id="right">→</div>
+        </div>
+    </div>
+
+    <div id="level-complete" class="screen hidden">
+        <h1 class="title" style="color: var(--exit-color);">LEVEL CLEAR</h1>
+        <button id="next-lvl-btn" class="btn">NEXT LEVEL</button>
+        <button id="main-menu-win-btn" class="btn">MAIN MENU</button>
+    </div>
+
+    <div id="game-over" class="screen hidden">
+        <h1 class="title" style="color: var(--enemy-color);">SYSTEM CAUGHT YOU</h1>
+        <button id="restart-btn" class="btn">RETRY LEVEL</button>
+        <button id="main-menu-btn" class="btn">MAIN MENU</button>
+    </div>
+
+    <script>
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const splash = document.getElementById('splash-screen');
+                splash.style.opacity = '0';
+                setTimeout(() => splash.classList.add('hidden'), 1000);
+            }, 2500);
+        });
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let soundEnabled = true;
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+            if (type === 'move') { osc.frequency.setValueAtTime(150, now); gain.gain.setValueAtTime(0.05, now); osc.start(); osc.stop(now + 0.05); }
+            else if (type === 'shoot') { osc.type = 'triangle'; osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(100, now + 0.1); gain.gain.setValueAtTime(0.1, now); osc.start(); osc.stop(now + 0.1); }
+            else if (type === 'key') { osc.type = 'sine'; osc.frequency.setValueAtTime(880, now); osc.frequency.exponentialRampToValueAtTime(1760, now + 0.1); gain.gain.setValueAtTime(0.2, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3); osc.start(); osc.stop(now + 0.3); }
+            else if (type === 'win') { osc.frequency.setValueAtTime(523, now); osc.frequency.exponentialRampToValueAtTime(1046, now + 0.3); gain.gain.setValueAtTime(0.1, now); osc.start(); osc.stop(now + 0.3); }
+            else if (type === 'lose') { osc.type = 'sawtooth'; osc.frequency.setValueAtTime(100, now); gain.gain.setValueAtTime(0.1, now); osc.start(); osc.stop(now + 0.4); }
+        }
+
+        const maps = [
+            [ 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,1,1,0,1,0,1,1,1,1,1,0,1,0,1,1,0,1,1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1,1,1,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,1,1,0,1,1,1,1,0,1,1,1,1,0,1,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,1,0,1,1,1,1,1,0,1,0,1,1,1,1,1,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,1,1,0,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1,0,1,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,1,1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,0,1,1,1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1,1,0,1,1,1,1,1,1,0,1,0,1,1,1,1,1,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 ],
+            [ 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,1,0,1,1,1,1,1,1,0,1,0,1,1,1,1,1,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,1,0,1,1,1,1,1,1,0,1,0,1,1,1,1,1,1,0,1,1,0,1,0,0,0,0,1,0,0,0,1,0,0,0,0,1,0,1,1,0,1,0,1,1,0,1,1,0,1,1,0,1,1,0,1,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,1,1,1,1,0,1,0,1,1,1,1,1,1,1,0,1,0,1,1,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,1,1,0,1,0,1,1,0,1,1,0,1,1,0,1,1,0,1,0,1,1,0,1,0,0,0,0,1,0,0,0,1,0,0,0,0,1,0,1,1,0,1,1,1,1,1,1,0,1,0,1,1,1,1,1,1,0,1,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,1,1,1,1,1,1,0,1,0,1,1,1,1,1,1,0,1,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 ],
+            [ 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,1,1,0,0,0,0,0,1,1,0,0,0,0,1,1,0,1,1,0,1,1,0,1,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0,0,0,0,1,1,1,0,0,0,0,1,1,0,1,1,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,1,1,1,1,0,1,1,0,0,0,0,0,0,0,1,1,0,1,1,1,1,1,1,0,1,0,0,1,1,0,1,1,0,0,1,0,1,1,1,1,0,0,0,0,0,1,1,0,0,0,1,1,0,0,0,0,0,1,1,0,1,1,1,0,1,0,0,0,0,0,1,0,1,1,1,0,1,1,0,1,0,0,0,0,0,1,1,1,0,0,0,0,0,1,0,1,1,0,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,0,1,1,0,1,0,0,0,0,0,1,1,1,0,0,0,0,0,1,0,1,1,0,1,1,1,0,1,0,0,0,0,0,1,0,1,1,1,0,1,1,0,0,0,0,0,1,1,0,0,0,1,1,0,0,0,0,0,1,1,1,1,0,1,0,0,1,1,0,1,1,0,0,1,0,1,1,1,1,1,1,0,1,1,0,0,0,0,0,0,0,1,1,0,1,1,1,1,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,1,1,0,1,1,0,0,0,0,1,1,1,0,0,0,0,1,1,0,1,1,1,0,1,1,0,1,1,0,1,1,1,0,1,1,0,1,1,0,1,1,0,0,0,0,1,1,0,0,0,0,0,1,1,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1 ]
+        ];
+
+        const width = 19;
+        let squares = [], playerIdx, enemyIndices = [], keyIdx, exitIdx;
+        let level = 1, gameActive = false, hasKey = false, enemyTimer;
+        const grid = document.getElementById('game-container');
+
+        function findFloor(layout, preferredIdx, reserved = [], minDist = 0, pIdx = -1) {
+            const isAvail = (i) => {
+                if (layout[i] !== 0 || reserved.includes(i)) return false;
+                if (minDist > 0 && pIdx !== -1) {
+                    const c1 = {x: i % width, y: Math.floor(i / width)}, c2 = {x: pIdx % width, y: Math.floor(pIdx / width)};
+                    return Math.sqrt(Math.pow(c1.x-c2.x,2)+Math.pow(c1.y-c2.y,2)) >= minDist;
+                }
+                return true;
+            };
+            if (isAvail(preferredIdx)) return preferredIdx;
+            for (let i = 0; i < layout.length; i++) if (isAvail(i)) return i;
+            return 20;
+        }
+
+        function initLevel() {
+            const currentLayout = maps[(level - 1) % maps.length];
+            grid.innerHTML = `<div class="hud"><div id="lvl-display">LEVEL: ${level}</div><div id="status-display">FIND THE KEY</div></div>`;
+            squares = [];
+            currentLayout.forEach(val => {
+                const node = document.createElement('div');
+                node.className = val === 1 ? 'cell wall' : 'cell';
+                grid.appendChild(node);
+                squares.push(node);
+            });
+            let reserved = [];
+            playerIdx = findFloor(currentLayout, 20); reserved.push(playerIdx);
+            keyIdx = findFloor(currentLayout, 180, reserved); reserved.push(keyIdx);
+            exitIdx = findFloor(currentLayout, 362, reserved); reserved.push(exitIdx);
+            
+            let enemyCount = level <= 3 ? 1 : (level <= 6 ? 2 : 3);
+            enemyIndices = [];
+            const spawnPoints = [378, 18, 36, 191, 50, 300]; 
+            for(let i=0; i < enemyCount; i++) {
+                let pos = findFloor(currentLayout, spawnPoints[i % spawnPoints.length], reserved, 5, playerIdx);
+                enemyIndices.push(pos);
+                squares[pos].classList.add('enemy');
+                reserved.push(pos);
+            }
+            squares[playerIdx].classList.add('player');
+            squares[keyIdx].classList.add('key');
+            squares[exitIdx].classList.add('exit');
+            hasKey = false; gameActive = true;
+            if(enemyTimer) clearInterval(enemyTimer);
+            startEnemyAI();
+        }
+
+        function movePlayer(dir) {
+            if(!gameActive) return;
+            let next = playerIdx;
+            if(dir === 'up') next -= width; if(dir === 'down') next += width;
+            if(dir === 'left') next -= 1; if(dir === 'right') next += 1;
+            if(squares[next] && !squares[next].classList.contains('wall')) {
+                squares[playerIdx].classList.remove('player');
+                playerIdx = next;
+                squares[playerIdx].classList.add('player');
+                playSound('move'); checkCollisions();
+            }
+        }
+
+        const handleShoot = (e) => {
+            if (!gameActive || e.target.closest('.btn') || e.target.closest('.ctrl-btn') || !document.getElementById('how-to-screen').classList.contains('hidden')) return;
+            const clientX = (e.touches ? e.touches[0].clientX : e.clientX);
+            const clientY = (e.touches ? e.touches[0].clientY : e.clientY);
+            const pRect = squares[playerIdx].getBoundingClientRect();
+            const sX = pRect.left + pRect.width/2, sY = pRect.top + pRect.height/2;
+            fireBullet(sX, sY, Math.atan2(clientY - sY, clientX - sX));
+        };
+        window.addEventListener('mousedown', handleShoot);
+        window.addEventListener('touchstart', handleShoot, {passive: false});
+
+        function fireBullet(x, y, angle) {
+            playSound('shoot');
+            const b = document.createElement('div');
+            b.className = 'bullet';
+            document.body.appendChild(b);
+            let pX = x, pY = y, spd = 8, vx = Math.cos(angle)*spd, vy = Math.sin(angle)*spd;
+            const bInt = setInterval(() => {
+                pX += vx; pY += vy; b.style.left = pX+'px'; b.style.top = pY+'px';
+                const hit = document.elementFromPoint(pX, pY);
+                if (hit) {
+                    if (hit.classList.contains('enemy')) {
+                        const eIdx = squares.indexOf(hit);
+                        hit.classList.remove('enemy'); enemyIndices.splice(enemyIndices.indexOf(eIdx), 1);
+                        const tm = document.createElement('div'); tm.className = 'respawn-msg'; hit.appendChild(tm);
+                        let cd = 8;
+                        const cdInt = setInterval(() => {
+                            if (--cd > 0) tm.innerText = `Reboot ${cd}s`;
+                            else { clearInterval(cdInt); tm.remove(); if (gameActive) { enemyIndices.push(eIdx); squares[eIdx].classList.add('enemy'); } }
+                        }, 1000);
+                        b.remove(); clearInterval(bInt);
+                    } else if (hit.classList.contains('wall')) { b.remove(); clearInterval(bInt); }
+                }
+                if (pX<0 || pX>window.innerWidth || pY<0 || pY>window.innerHeight) { b.remove(); clearInterval(bInt); }
+            }, 16);
+        }
+
+        function startEnemyAI() {
+            enemyTimer = setInterval(() => {
+                if(!gameActive) return;
+                enemyIndices.forEach((eIdx, i) => {
+                    squares[eIdx].classList.remove('enemy');
+                    let pC = { x: playerIdx % width, y: Math.floor(playerIdx / width) }, eC = { x: eIdx % width, y: Math.floor(eIdx / width) };
+                    
+                    let moves = [];
+                    if(pC.x < eC.x) moves.push(eIdx-1); if(pC.x > eC.x) moves.push(eIdx+1);
+                    if(pC.y < eC.y) moves.push(eIdx-width); if(pC.y > eC.y) moves.push(eIdx+width);
+                    let valid = moves.filter(m => squares[m] && !squares[m].classList.contains('wall') && !squares[m].classList.contains('enemy'));
+                    if(valid.length > 0) enemyIndices[i] = valid[0];
+                    squares[enemyIndices[i]].classList.add('enemy');
+                });
+                checkCollisions();
+            }, Math.max(120, 400 - (level * 20)));
+        }
+
+        function checkCollisions() {
+            if(enemyIndices.includes(playerIdx)) endGame('lost');
+            if(playerIdx === keyIdx && !hasKey) {
+                hasKey = true; playSound('key'); squares[keyIdx].classList.remove('key'); squares[exitIdx].classList.add('unlocked');
+                document.getElementById('status-display').innerText = "GO TO EXIT!";
+            }
+            if(playerIdx === exitIdx && hasKey) endGame('win');
+        }
+
+        function endGame(res) {
+            gameActive = false; clearInterval(enemyTimer); playSound(res === 'win' ? 'win' : 'lose');
+            document.getElementById('game-screen').classList.add('hidden');
+            document.getElementById(res === 'win' ? 'level-complete' : 'game-over').classList.remove('hidden');
+        }
+
+        document.getElementById('how-to-btn').onclick = () => document.getElementById('how-to-screen').classList.remove('hidden');
+        document.getElementById('back-btn').onclick = () => document.getElementById('how-to-screen').classList.add('hidden');
+        document.getElementById('sound-toggle').onclick = (e) => {
+            soundEnabled = !soundEnabled; e.target.innerText = `SOUND: ${soundEnabled ? 'ON' : 'OFF'}`;
+            if (soundEnabled && audioCtx.state === 'suspended') audioCtx.resume();
+        };
+        document.getElementById('start-btn').onclick = () => {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            document.getElementById('menu').classList.add('hidden');
+            document.getElementById('game-screen').classList.remove('hidden');
+            level = 1; initLevel();
+        };
+        [document.getElementById('restart-btn'), document.getElementById('next-lvl-btn')].forEach(btn => btn.onclick = () => {
+            if(btn.id === 'next-lvl-btn') level++;
+            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+            document.getElementById('game-screen').classList.remove('hidden'); initLevel();
+        });
+        [document.getElementById('main-menu-btn'), document.getElementById('main-menu-win-btn')].forEach(btn => btn.onclick = () => location.reload());
+
+        window.onkeydown = (e) => {
+            if(e.key === 'ArrowUp') movePlayer('up'); if(e.key === 'ArrowDown') movePlayer('down');
+            if(e.key === 'ArrowLeft') movePlayer('left'); if(e.key === 'ArrowRight') movePlayer('right');
+        };
+        document.getElementById('up').onpointerdown = (e) => { e.preventDefault(); movePlayer('up'); };
+        document.getElementById('down').onpointerdown = (e) => { e.preventDefault(); movePlayer('down'); };
+        document.getElementById('left').onpointerdown = (e) => { e.preventDefault(); movePlayer('left'); };
+        document.getElementById('right').onpointerdown = (e) => { e.preventDefault(); movePlayer('right'); };
+    </script>
+</body>
+</html>
